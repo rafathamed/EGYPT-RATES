@@ -17,7 +17,8 @@ const defaultPreferences: Preferences = { opacity: 92, hue: 195, alwaysOnTop: tr
 type WindowSize = { width: number; height: number };
 const WINDOW_SIZE_KEY = "egypt-rates.window-size.v1";
 const CALCULATOR_VALUES_KEY = "egypt-rates.calculator-values.v1";
-type CalculatorValues = { usd: string; sar: string };
+type CalculatorKey = "usd" | "sar" | "gold24" | "gold21";
+type CalculatorValues = Record<CalculatorKey, string>;
 const DEFAULT_WINDOW_SIZE: WindowSize = { width: 420, height: 780 };
 const WINDOW_SIZE_LIMITS = { minWidth: 350, maxWidth: 680, minHeight: 580, maxHeight: 1000 };
 const currentWindow = getCurrentWindow();
@@ -63,7 +64,9 @@ function loadCalculatorValues(): CalculatorValues {
     const saved = JSON.parse(localStorage.getItem(CALCULATOR_VALUES_KEY) ?? "null") as Partial<CalculatorValues> | null;
     return {
       usd: typeof saved?.usd === "string" ? saved.usd : "",
-      sar: typeof saved?.sar === "string" ? saved.sar : ""
+      sar: typeof saved?.sar === "string" ? saved.sar : "",
+      gold24: typeof saved?.gold24 === "string" ? saved.gold24 : "",
+      gold21: typeof saved?.gold21 === "string" ? saved.gold21 : ""
     };
   } catch {
     return { usd: "", sar: "" };
@@ -279,19 +282,21 @@ async function toggleAutoStart() {
   }
 }
 
-function purchaseTotal(id: "usd" | "sar", buy: number | null): number | null {
+function purchaseTotal(id: CalculatorKey, buy: number | null): number | null {
   const rawQuantity = calculatorValues[id].trim();
   if (buy === null || rawQuantity === "") return null;
   const quantity = Number(rawQuantity);
   return Number.isFinite(quantity) && quantity >= 0 ? buy * quantity : null;
 }
 
-function calculationPanel(id: "usd" | "sar", quote: Quote) {
+function calculationPanel(id: CalculatorKey, quote: Quote) {
+  const isGold = id === "gold24" || id === "gold21";
+  const itemName = id === "usd" ? "الدولار" : id === "sar" ? "الريال السعودي" : id === "gold24" ? "الذهب عيار 24" : "الذهب عيار 21";
   return `
     <div class="purchase-calculator">
       <div class="calculator-heading">
-        <label for="${id}-quantity">حساب قيمة الشراء</label>
-        <span>سعر الشراء × الكمية</span>
+        <label for="${id}-quantity">${isGold ? "حساب قيمة الذهب" : "حساب قيمة الشراء"}</label>
+        <span>${isGold ? "سعر شراء الجرام × الجرامات" : "سعر الشراء × الكمية"}</span>
       </div>
       <div class="calculator-row">
         <input
@@ -303,19 +308,19 @@ function calculationPanel(id: "usd" | "sar", quote: Quote) {
           step="any"
           dir="ltr"
           autocomplete="off"
-          aria-label="أدخل الكمية لحساب قيمة شراء ${id === "usd" ? "الدولار" : "الريال السعودي"}"
-          placeholder="أدخل الرقم"
+          aria-label="${isGold ? "عدد جرامات" : "كمية"} ${itemName} لحساب الإجمالي"
+          placeholder="${isGold ? "عدد الجرامات" : "أدخل الكمية"}"
           value="${escapeHtml(calculatorValues[id])}"
         />
         <div class="calculator-output" aria-live="polite">
-          <span>الناتج (جنيه)</span>
+          <span>الإجمالي (جنيه)</span>
           <strong id="${id}-total">${money(purchaseTotal(id, quote.buy))}</strong>
         </div>
       </div>
     </div>`;
 }
 
-function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
+function quoteCard(title: string, symbol: string, quote: Quote, id: CalculatorKey) {
   const statusText = quote.status === "available"
     ? "متاح"
     : quote.status === "stale" ? "بيانات قديمة" : "غير متاح";
@@ -330,7 +335,7 @@ function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
         <div class="quote-divider"></div>
         <div class="quote-value"><span>بيع</span><strong>${money(quote.sell)}</strong></div>
       </div>
-      ${id === "usd" || id === "sar" ? calculationPanel(id, quote) : ""}
+      ${calculationPanel(id, quote)}
       <div class="card-footer">
         <span class="source-name">${escapeHtml(quote.source)}</span>
         <span class="source-time">${quote.updatedAt ? "تحديث المصدر: " + escapeHtml(quote.updatedAt) : "توقيت المصدر غير متاح"}</span>
@@ -341,7 +346,7 @@ function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
 function render() {
   const root = document.querySelector<HTMLDivElement>("#root")!;
   const focusedCalculator = document.activeElement instanceof HTMLInputElement
-    && (document.activeElement.id === "usd-quantity" || document.activeElement.id === "sar-quantity")
+    && ["usd-quantity", "sar-quantity", "gold24-quantity", "gold21-quantity"].includes(document.activeElement.id)
     ? document.activeElement.id
     : null;
   const rates = latestRates;
@@ -412,6 +417,12 @@ function render() {
         </div>
         <div class="settings-divider"></div>
         <div class="startup-row">
+          <div class="startup-copy"><strong>الظهور فوق النوافذ الأخرى</strong><span>إبقاء نافذة الأسعار أمام النوافذ الأخرى</span></div>
+          <button id="topmost-toggle" class="switch" role="switch" aria-checked="${preferences.alwaysOnTop}" aria-label="الظهور فوق النوافذ الأخرى"><span></span></button>
+        </div>
+        <div class="startup-state" id="topmost-state">${preferences.alwaysOnTop ? "مفعّل — فوق النوافذ الأخرى" : "متوقف — ضمن ترتيب النوافذ"}</div>
+        <div class="settings-divider"></div>
+        <div class="startup-row">
           <div class="startup-copy"><strong>التشغيل مع Windows</strong><span>فتح التطبيق تلقائياً عند تسجيل الدخول</span></div>
           <button id="autostart-toggle" class="switch" role="switch" aria-checked="false" aria-label="التشغيل مع Windows"><span></span></button>
         </div>
@@ -442,7 +453,7 @@ function render() {
     void invoke("hide_window").catch(() => undefined);
   });
   document.querySelector("#refresh-button")?.addEventListener("click", () => void refresh());
-  (["usd", "sar"] as const).forEach((id) => {
+  (["usd", "sar", "gold24", "gold21"] as const).forEach((id) => {
     const input = document.querySelector<HTMLInputElement>(`#${id}-quantity`);
     input?.addEventListener("input", () => {
       calculatorValues[id] = input.value;
@@ -487,6 +498,7 @@ function render() {
   }
 
   if (settingsOpen) {
+    syncTopmostControl();
     syncAutoStartControl();
     void loadAutoStartState();
   }
