@@ -243,7 +243,7 @@ async fn fetch_nbe_sar(client: &reqwest::Client) -> Quote {
             continue;
         }
 
-        if cells[0].contains("SAREGP") || cells[0].contains("الريال السعودي") {
+        if cells[0].contains("SAR") || cells[0].contains("الريال السعودي") || cells[0].contains("ريال سعودي") {
             let buy = parse_price(&cells[1], &number);
             let sell = parse_price(&cells[2], &number);
             if let (Some(buy), Some(sell)) = (buy, sell) {
