@@ -21,4 +21,5 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 futures = "0.3"
 scraper = "0.22"
-regex = "1"\nopen = "5"
+regex = "1"
+open = "5"
