@@ -210,6 +210,9 @@ async function checkForUpdates() {
   if (state) state.textContent = "جارٍ التحقق من وجود تحديث آمن…";
 
   try {
+    const previousUpdate = pendingUpdate;
+    pendingUpdate = null;
+    await previousUpdate?.close().catch(() => undefined);
     pendingUpdate = await check();
     if (pendingUpdate) {
       updateMessage = `يتوفر تحديث جديد: الإصدار ${pendingUpdate.version}`;
@@ -260,8 +263,9 @@ async function installAvailableUpdate() {
       }
       if (state) state.textContent = updateMessage;
       if (installButton) installButton.textContent = updateMessage;
-    });
+    }, { restartAfterInstall: true });
 
+    pendingUpdate = null;
     updateMessage = "تم تمرير التحديث إلى مثبّت Windows. سيغلق التطبيق لإكمال التثبيت.";
     if (state) state.textContent = updateMessage;
   } catch (error) {
