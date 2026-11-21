@@ -69,7 +69,7 @@ function loadCalculatorValues(): CalculatorValues {
       gold21: typeof saved?.gold21 === "string" ? saved.gold21 : ""
     };
   } catch {
-    return { usd: "", sar: "" };
+    return { usd: "", sar: "", gold24: "", gold21: "" };
   }
 }
 let calculatorValues = loadCalculatorValues();
