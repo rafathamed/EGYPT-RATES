@@ -429,7 +429,7 @@ function render() {
         <div class="startup-state" id="autostart-state">التحقق من الحالة…</div>
         <div class="settings-divider"></div>
         <div class="updates-block">
-          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.4 — تحقق من وجود إصدار أحدث</span></div>
+          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.5 — تحقق من وجود إصدار أحدث</span></div>
           <button id="check-updates" class="size-control" type="button">تحقق من التحديثات</button>
           <div class="startup-state update-state" id="update-state">لم يتم التحقق بعد</div>
           <button id="download-update" class="refresh-button" type="button" hidden>فتح صفحة تنزيل التحديث</button>
