@@ -9,7 +9,7 @@ type Quote = {
   updatedAt: string | null;
   status: "available" | "unavailable" | "stale";
 };
-type Rates = { usd: Quote; gold24: Quote; gold21: Quote; checkedAt: string };
+type Rates = { usd: Quote; sar: Quote; gold24: Quote; gold21: Quote; checkedAt: string };
 type Preferences = { opacity: number; hue: number; alwaysOnTop: boolean };
 
 const PREF_KEY = "egypt-rates.preferences.v1";
@@ -291,6 +291,7 @@ function render() {
   const root = document.querySelector<HTMLDivElement>("#root")!;
   const rates = latestRates;
   const usd = rates?.usd ?? unavailable("البنك الأهلي المصري");
+  const sar = rates?.sar ?? unavailable("البنك الأهلي المصري");
   const gold24 = rates?.gold24 ?? unavailable("iSagha");
   const gold21 = rates?.gold21 ?? unavailable("iSagha");
   const checked = lastCheckedAt ? new Date(lastCheckedAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
@@ -319,6 +320,7 @@ function render() {
       <div class="section-caption"><span>الأسعار الحالية</span><span class="live-mark"><i></i>متابعة تلقائية</span></div>
       <section class="rates-list">
         ${quoteCard("الدولار الأمريكي", "USD / EGP", usd, "usd")}
+        ${quoteCard("الريال السعودي", "SAR / EGP", sar, "sar")}
         ${quoteCard("الذهب عيار 24", "24K / EGP", gold24, "gold24")}
         ${quoteCard("الذهب عيار 21", "21K / EGP", gold21, "gold21")}
       </section>
@@ -437,7 +439,7 @@ async function refresh() {
   } catch {
     refreshError = true;
     if (latestRates) {
-      for (const quote of [latestRates.usd, latestRates.gold24, latestRates.gold21]) {
+      for (const quote of [latestRates.usd, latestRates.sar, latestRates.gold24, latestRates.gold21]) {
         if (quote.buy !== null || quote.sell !== null) quote.status = "stale";
       }
     }
