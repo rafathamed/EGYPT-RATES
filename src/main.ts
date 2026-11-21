@@ -273,7 +273,7 @@ function enableAnywhereDragging() {
   document.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (!target || target.closest("button, input, textarea, select, a, label, .settings-panel, [data-no-drag]")) return;
+    if (!target || target.closest("button, input, textarea, select, a, label, [data-no-drag]")) return;
     void getCurrentWindow().startDragging().catch(() => undefined);
   });
 }
