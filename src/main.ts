@@ -17,7 +17,7 @@ function render(rates: Rates | null, error = false) {
   ] as const;
   root.innerHTML = `
     <main class="shell">
-      <header class="topbar"><div><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1></div><div class="actions"><button id="refresh" title="تحديث">⟳</button><button id="minimize" title="إخفاء">−</button></div></header>
+      <header class="topbar"><div><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1></div><div class="actions"><button id="refresh" title="تحديث">⟳</button><button id="minimize" title="تصغير">−</button></div></header>
       <section class="cards">
         ${cards.map(([title, symbol, q]) => `<article class="card"><div class="card-head"><div><h2>${title}</h2><span class="symbol">${symbol}</span></div><span class="dot ${q.status}"></span></div><div class="prices"><div><small>شراء</small><strong>${money(q.buy)}</strong></div><div><small>بيع</small><strong>${money(q.sell)}</strong></div></div><footer><span>${q.source}</span><span>${q.status === "available" ? "متاح" : q.status === "stale" ? "بيانات قديمة" : "غير متاح"}</span></footer></article>`).join("")}
       </section>
@@ -28,7 +28,7 @@ function render(rates: Rates | null, error = false) {
     if ((event.target as HTMLElement).closest("button")) return;
     void getCurrentWindow().startDragging().catch(() => undefined);
   });
-  document.querySelector("#minimize")?.addEventListener("click", () => invoke("hide_window").catch(() => undefined));
+  document.querySelector("#minimize")?.addEventListener("click", () => invoke("minimize_window").catch(() => undefined));
 }
 
 async function refresh() {
