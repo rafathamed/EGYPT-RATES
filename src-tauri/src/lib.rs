@@ -22,6 +22,7 @@ struct Quote {
 #[serde(rename_all = "camelCase")]
 struct Rates {
     usd: Quote,
+    sar: Quote,
     gold24: Quote,
     gold21: Quote,
     checked_at: String,
@@ -203,6 +204,58 @@ async fn fetch_nbe_usd(client: &reqwest::Client) -> Quote {
     unavailable(SOURCE)
 }
 
+async fn fetch_nbe_sar(client: &reqwest::Client) -> Quote {
+    // BankLive is a third-party mirror, not an NBE-operated API.
+    const SOURCE: &str = "البنك الأهلي المصري (عبر BankLive)";
+    let Some(html) = fetch_page(
+        client,
+        "https://banklive.net/ar/currency-exchange-rates-in-national-bank-of-egypt",
+    ).await else {
+        return unavailable(SOURCE);
+    };
+
+    let document = Html::parse_document(&html);
+    let text = page_text(&document);
+    let Ok(row_selector) = Selector::parse("table tr") else {
+        return unavailable(SOURCE);
+    };
+    let Ok(cell_selector) = Selector::parse("th, td") else {
+        return unavailable(SOURCE);
+    };
+    let Ok(number) = Regex::new(r"\d+(?:\.\d+)?") else {
+        return unavailable(SOURCE);
+    };
+
+    let source_update = Regex::new(
+        r"في\s+(منذ\s+[0-9٠-٩]+\s+(?:دقيقة|دقائق|ساعة|ساعات|يوم|أيام))",
+    )
+    .ok()
+    .and_then(|re| re.captures(&text))
+    .and_then(|captures| captures.get(1))
+    .map(|value| format!("آخر حركة بموقع البنك: {}", value.as_str()));
+
+    for row in document.select(&row_selector) {
+        let cells: Vec<String> = row
+            .select(&cell_selector)
+            .map(|cell| cell.text().collect::<String>().trim().to_string())
+            .collect();
+        if cells.len() < 3 {
+            continue;
+        }
+
+        if cells[0].contains("SAREGP") || cells[0].contains("الريال السعودي") {
+            let buy = parse_price(&cells[1], &number);
+            let sell = parse_price(&cells[2], &number);
+            if let (Some(buy), Some(sell)) = (buy, sell) {
+                if sell >= buy {
+                    return available(SOURCE, buy, sell, source_update);
+                }
+            }
+        }
+    }
+    unavailable(SOURCE)
+}
+
 async fn fetch_gtc_fallback(client: &reqwest::Client) -> (Quote, Quote) {
     const SOURCE: &str = "Gold Trade Center (احتياطي)";
     let unavailable_pair = || (unavailable(SOURCE), unavailable(SOURCE));
@@ -241,6 +294,7 @@ async fn refresh_rates() -> Rates {
     let Some(client) = http_client() else {
         return Rates {
             usd: unavailable("البنك الأهلي المصري (عبر BankLive)"),
+            sar: unavailable("البنك الأهلي المصري (عبر BankLive)"),
             gold24: unavailable("iSagha"),
             gold21: unavailable("iSagha"),
             checked_at,
@@ -249,8 +303,9 @@ async fn refresh_rates() -> Rates {
 
     // Fetch USD and iSagha concurrently; the UI remains responsive while the
     // network work runs, and the shared client reuses TLS connections.
-    let (usd, (mut gold24, mut gold21)) = futures::join!(
+    let (usd, sar, (mut gold24, mut gold21)) = futures::join!(
         fetch_nbe_usd(client),
+        fetch_nbe_sar(client),
         fetch_isagha(client)
     );
 
@@ -260,7 +315,7 @@ async fn refresh_rates() -> Rates {
         if gold21.buy.is_none() { gold21 = fallback21; }
     }
 
-    Rates { usd, gold24, gold21, checked_at }
+    Rates { usd, sar, gold24, gold21, checked_at }
 }
 
 #[derive(Deserialize)]
