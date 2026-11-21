@@ -1,5 +1,6 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type Quote = { buy: number | null; sell: number | null; source: string; updatedAt: string | null; status: "available" | "unavailable" | "stale" };
 type Rates = { usd: Quote; gold24: Quote; gold21: Quote; checkedAt: string };
@@ -23,6 +24,10 @@ function render(rates: Rates | null, error = false) {
       <div class="status"><span>${error ? "تعذر الاتصال بمصدر الأسعار" : "لن نعرض أسعاراً غير موثقة"}</span><span>آخر فحص: ${rates ? new Date(rates.checkedAt).toLocaleTimeString("ar-EG") : "—"}</span></div>
     </main>`;
   document.querySelector("#refresh")?.addEventListener("click", refresh);
+  document.querySelector(".topbar")?.addEventListener("mousedown", (event) => {
+    if ((event.target as HTMLElement).closest("button")) return;
+    void getCurrentWindow().startDragging().catch(() => undefined);
+  });
   document.querySelector("#minimize")?.addEventListener("click", () => invoke("hide_window").catch(() => undefined));
 }
 
