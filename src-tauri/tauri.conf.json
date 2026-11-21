@@ -55,7 +55,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcxRjNGQjc0RkM5NjdDRDUKUldUVmZKYjhkUHZ6Y1c0VG9GZVc2ekFEcHhkSHlMZGJ6SE41RldMbWlnenQ5T3FmRzRsSWp0SmYK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2Q0U5MjFCQ0Q3NDlDMzAKUldRd25IVE5HNUxPVnVlc3MwbVJvRXpOQks1SFpZSnMwQzJRWlVYQTJZcVhyb1RXZ2NkZ3hYdUoK",
       "endpoints": [
         "https://github.com/rafathamed/EGYPT-RATES/releases/latest/download/latest.json"
       ],
