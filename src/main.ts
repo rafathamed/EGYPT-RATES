@@ -10,10 +10,10 @@ type Quote = {
   status: "available" | "unavailable" | "stale";
 };
 type Rates = { usd: Quote; gold24: Quote; gold21: Quote; checkedAt: string };
-type Preferences = { opacity: number; hue: number };
+type Preferences = { opacity: number; hue: number; alwaysOnTop: boolean };
 
 const PREF_KEY = "egypt-rates.preferences.v1";
-const defaultPreferences: Preferences = { opacity: 92, hue: 195 };
+const defaultPreferences: Preferences = { opacity: 92, hue: 195, alwaysOnTop: true };
 type WindowSize = { width: number; height: number };
 const WINDOW_SIZE_KEY = "egypt-rates.window-size.v1";
 const DEFAULT_WINDOW_SIZE: WindowSize = { width: 420, height: 780 };
@@ -26,7 +26,7 @@ function loadPreferences(): Preferences {
     const stored = JSON.parse(localStorage.getItem(PREF_KEY) ?? "null") as Partial<Preferences> | null;
     return {
       opacity: Math.min(98, Math.max(55, Number(stored?.opacity ?? defaultPreferences.opacity))),
-      hue: Math.min(275, Math.max(175, Number(stored?.hue ?? defaultPreferences.hue)))
+      hue: Math.min(275, Math.max(175, Number(stored?.hue ?? defaultPreferences.hue))),\n      alwaysOnTop: stored?.alwaysOnTop !== false
     };
   } catch {
     return { ...defaultPreferences };
@@ -37,7 +37,7 @@ let preferences = loadPreferences();
 let settingsOpen = false;
 let autoStartEnabled: boolean | null = null;
 let autoStartLoading = false;
-let autoStartError = false;
+let autoStartError = false;\nlet topmostLoading = false;\nlet updateChecking = false;\nlet updateMessage = "لم يتم التحقق بعد";\nlet updateUrl: string | null = null;\nlet updateAvailable = false;
 let latestRates: Rates | null = null;
 let lastCheckedAt: string | null = null;
 let refreshError = false;
@@ -149,7 +149,7 @@ async function resetWindowSize() {
   }
 }
 
-function syncAutoStartControl() {
+async function applyAlwaysOnTop() {\n  try { await currentWindow.setAlwaysOnTop(preferences.alwaysOnTop); } catch { /* Native window API may be unavailable in preview mode. */ }\n}\n\nfunction syncTopmostControl() {\n  const button = document.querySelector<HTMLButtonElement>("#topmost-toggle");\n  const state = document.querySelector<HTMLElement>("#topmost-state");\n  if (!button || !state) return;\n  button.setAttribute("aria-checked", String(preferences.alwaysOnTop));\n  button.disabled = topmostLoading;\n  state.textContent = topmostLoading ? "جارٍ تطبيق الإعداد…" : preferences.alwaysOnTop ? "مفعّل — فوق النوافذ الأخرى" : "متوقف — ضمن ترتيب النوافذ";\n}\n\nasync function toggleAlwaysOnTop() {\n  if (topmostLoading) return;\n  topmostLoading = true; syncTopmostControl();\n  const previous = preferences.alwaysOnTop;\n  preferences.alwaysOnTop = !previous;\n  try {\n    await currentWindow.setAlwaysOnTop(preferences.alwaysOnTop);\n    savePreferences();\n  } catch {\n    preferences.alwaysOnTop = previous;\n  } finally { topmostLoading = false; syncTopmostControl(); }\n}\n\nasync function checkForUpdates() {\n  if (updateChecking) return;\n  updateChecking = true;\n  const button = document.querySelector<HTMLButtonElement>("#check-updates");\n  const state = document.querySelector<HTMLElement>("#update-state");\n  if (button) button.disabled = true;\n  if (state) state.textContent = "جارٍ البحث عن تحديثات…";\n  try {\n    const result = await invoke<{ currentVersion: string; latestVersion: string | null; updateAvailable: boolean; htmlUrl: string | null; releaseNotes: string | null }>("check_for_updates");\n    updateAvailable = result.updateAvailable; updateUrl = result.htmlUrl;\n    updateMessage = result.latestVersion ? (result.updateAvailable ? `يتوفر إصدار جديد ${result.latestVersion}` : `أنت تستخدم أحدث إصدار (${result.currentVersion})`) : "لا توجد إصدارات منشورة بعد";\n    if (result.releaseNotes) updateMessage += `\\n${result.releaseNotes.slice(0, 420)}`;\n  } catch { updateMessage = "تعذر التحقق. تحقق من اتصال الإنترنت ثم أعد المحاولة."; updateAvailable = false; updateUrl = null; }\n  finally {\n    updateChecking = false;\n    if (button) { button.disabled = false; button.textContent = "تحقق من التحديثات"; }\n    if (state) state.textContent = updateMessage;\n    const link = document.querySelector<HTMLButtonElement>("#download-update");\n    if (link) link.hidden = !updateAvailable || !updateUrl;\n  }\n}\n\nasync function openUpdatePage() {\n  if (!updateUrl) return;\n  try { await invoke("open_update_page", { url: updateUrl }); } catch {\n    const state = document.querySelector<HTMLElement>("#update-state");\n    if (state) state.textContent = "تعذر فتح صفحة التحديث.";\n  }\n}\n\nfunction syncAutoStartControl() {
   const button = document.querySelector<HTMLButtonElement>("#autostart-toggle");
   const state = document.querySelector<HTMLElement>("#autostart-state");
   if (!button || !state) return;
@@ -296,7 +296,7 @@ function render() {
           <button id="autostart-toggle" class="switch" role="switch" aria-checked="false" aria-label="التشغيل مع Windows"><span></span></button>
         </div>
         <div class="startup-state" id="autostart-state">التحقق من الحالة…</div>
-        <div class="settings-note">تُحفظ إعدادات المظهر على هذا الجهاز. قد يظهر رمز التطبيق في قائمة الأيقونات المخفية وفق إعدادات شريط مهام Windows.</div>
+        <div class="settings-divider"></div>\n        <div class="updates-block">\n          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.3 — تحقق من وجود إصدار أحدث</span></div>\n          <button id="check-updates" class="size-control" type="button">تحقق من التحديثات</button>\n          <div class="startup-state update-state" id="update-state">لم يتم التحقق بعد</div>\n          <button id="download-update" class="refresh-button" type="button" hidden>فتح صفحة تنزيل التحديث</button>\n        </div>\n        <div class="settings-note">تُحفظ إعدادات المظهر والظهور فوق النوافذ على هذا الجهاز. قد يظهر رمز التطبيق في قائمة الأيقونات المخفية وفق إعدادات شريط مهام Windows.</div>
       </section>
 
       <div class="window-glow"></div>
@@ -336,7 +336,7 @@ function render() {
   document.querySelector("#size-down")?.addEventListener("click", () => void resizeWindowByStep(-1));
   document.querySelector("#size-up")?.addEventListener("click", () => void resizeWindowByStep(1));
   document.querySelector("#size-reset")?.addEventListener("click", () => void resetWindowSize());
-  document.querySelector("#autostart-toggle")?.addEventListener("click", () => void toggleAutoStart());
+  document.querySelector("#autostart-toggle")?.addEventListener("click", () => void toggleAutoStart());\n  document.querySelector("#topmost-toggle")?.addEventListener("click", () => void toggleAlwaysOnTop());\n  document.querySelector("#check-updates")?.addEventListener("click", () => void checkForUpdates());\n  document.querySelector("#download-update")?.addEventListener("click", () => void openUpdatePage());
 
   if (settingsOpen) {
     syncAutoStartControl();
@@ -396,7 +396,7 @@ function enableAnywhereDragging() {
   });
 }
 
-void restoreAndWatchWindowSize();
+void applyAlwaysOnTop();\nvoid restoreAndWatchWindowSize();
 enableAnywhereDragging();
 render();
 void refresh();
