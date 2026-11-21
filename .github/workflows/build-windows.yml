@@ -48,21 +48,45 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-
   publish-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Publish on a version-tag push, or create the matching vX.Y.Z tag
+    # automatically for a successful new version on main.
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Read application version
+        id: version
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Check whether this version is already released
+        id: release-check
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Download Windows installers
         uses: actions/download-artifact@v4
         with:
           name: EGYPT-RATES-Windows
           path: release-assets
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag' || steps.release-check.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
           files: |
             release-assets/**/*.exe
             release-assets/**/*.msi
