@@ -16,6 +16,8 @@ const PREF_KEY = "egypt-rates.preferences.v1";
 const defaultPreferences: Preferences = { opacity: 92, hue: 195, alwaysOnTop: true };
 type WindowSize = { width: number; height: number };
 const WINDOW_SIZE_KEY = "egypt-rates.window-size.v1";
+const CALCULATOR_VALUES_KEY = "egypt-rates.calculator-values.v1";
+type CalculatorValues = { usd: string; sar: string };
 const DEFAULT_WINDOW_SIZE: WindowSize = { width: 420, height: 780 };
 const WINDOW_SIZE_LIMITS = { minWidth: 350, maxWidth: 680, minHeight: 580, maxHeight: 1000 };
 const currentWindow = getCurrentWindow();
@@ -56,6 +58,18 @@ const unavailable = (source: string): Quote => ({
 const money = (value: number | null) => value === null
   ? "—"
   : new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+function loadCalculatorValues(): CalculatorValues {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CALCULATOR_VALUES_KEY) ?? "null") as Partial<CalculatorValues> | null;
+    return {
+      usd: typeof saved?.usd === "string" ? saved.usd : "",
+      sar: typeof saved?.sar === "string" ? saved.sar : ""
+    };
+  } catch {
+    return { usd: "", sar: "" };
+  }
+}
+let calculatorValues = loadCalculatorValues();
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[char]!));
@@ -265,6 +279,42 @@ async function toggleAutoStart() {
   }
 }
 
+function purchaseTotal(id: "usd" | "sar", buy: number | null): number | null {
+  const rawQuantity = calculatorValues[id].trim();
+  if (buy === null || rawQuantity === "") return null;
+  const quantity = Number(rawQuantity);
+  return Number.isFinite(quantity) && quantity >= 0 ? buy * quantity : null;
+}
+
+function calculationPanel(id: "usd" | "sar", quote: Quote) {
+  return `
+    <div class="purchase-calculator">
+      <div class="calculator-heading">
+        <label for="${id}-quantity">حساب قيمة الشراء</label>
+        <span>سعر الشراء × الكمية</span>
+      </div>
+      <div class="calculator-row">
+        <input
+          id="${id}-quantity"
+          class="calculator-input"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="any"
+          dir="ltr"
+          autocomplete="off"
+          aria-label="أدخل الكمية لحساب قيمة شراء ${id === "usd" ? "الدولار" : "الريال السعودي"}"
+          placeholder="أدخل الرقم"
+          value="${escapeHtml(calculatorValues[id])}"
+        />
+        <div class="calculator-output" aria-live="polite">
+          <span>الناتج (جنيه)</span>
+          <strong id="${id}-total">${money(purchaseTotal(id, quote.buy))}</strong>
+        </div>
+      </div>
+    </div>`;
+}
+
 function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
   const statusText = quote.status === "available"
     ? "متاح"
@@ -280,6 +330,7 @@ function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
         <div class="quote-divider"></div>
         <div class="quote-value"><span>بيع</span><strong>${money(quote.sell)}</strong></div>
       </div>
+      ${id === "usd" || id === "sar" ? calculationPanel(id, quote) : ""}
       <div class="card-footer">
         <span class="source-name">${escapeHtml(quote.source)}</span>
         <span class="source-time">${quote.updatedAt ? "تحديث المصدر: " + escapeHtml(quote.updatedAt) : "توقيت المصدر غير متاح"}</span>
@@ -289,6 +340,10 @@ function quoteCard(title: string, symbol: string, quote: Quote, id: string) {
 
 function render() {
   const root = document.querySelector<HTMLDivElement>("#root")!;
+  const focusedCalculator = document.activeElement instanceof HTMLInputElement
+    && (document.activeElement.id === "usd-quantity" || document.activeElement.id === "sar-quantity")
+    ? document.activeElement.id
+    : null;
   const rates = latestRates;
   const usd = rates?.usd ?? unavailable("البنك الأهلي المصري");
   const sar = rates?.sar ?? unavailable("البنك الأهلي المصري");
@@ -387,6 +442,20 @@ function render() {
     void invoke("hide_window").catch(() => undefined);
   });
   document.querySelector("#refresh-button")?.addEventListener("click", () => void refresh());
+  (["usd", "sar"] as const).forEach((id) => {
+    const input = document.querySelector<HTMLInputElement>(`#${id}-quantity`);
+    input?.addEventListener("input", () => {
+      calculatorValues[id] = input.value;
+      try {
+        localStorage.setItem(CALCULATOR_VALUES_KEY, JSON.stringify(calculatorValues));
+      } catch {
+        // The live calculation remains available even if local storage is unavailable.
+      }
+      const quote = latestRates?.[id] ?? unavailable("البنك الأهلي المصري");
+      const output = document.querySelector<HTMLElement>(`#${id}-total`);
+      if (output) output.textContent = money(purchaseTotal(id, quote.buy));
+    });
+  });
   document.querySelector("#opacity-slider")?.addEventListener("input", (event) => {
     preferences.opacity = Number((event.currentTarget as HTMLInputElement).value);
     const output = document.querySelector<HTMLOutputElement>("#opacity-value");
@@ -412,6 +481,10 @@ function render() {
   document.querySelector("#topmost-toggle")?.addEventListener("click", () => void toggleAlwaysOnTop());
   document.querySelector("#check-updates")?.addEventListener("click", () => void checkForUpdates());
   document.querySelector("#download-update")?.addEventListener("click", () => void openUpdatePage());
+
+  if (focusedCalculator) {
+    document.querySelector<HTMLInputElement>(`#${focusedCalculator}`)?.focus({ preventScroll: true });
+  }
 
   if (settingsOpen) {
     syncAutoStartControl();
