@@ -16,12 +16,22 @@ button{font:inherit}
 .window-shell{
   position:relative;isolation:isolate;display:flex;flex-direction:column;gap:0;
   width:100%;height:100%;padding:19px 17px 15px;overflow:hidden;
-  border:1px solid rgba(255,255,255,.11);border-radius:25px;
+  border:1px solid rgba(255,255,255,.11);border-radius:16px;
   background:hsla(222,31%,11%,var(--window-opacity));
-  box-shadow:0 22px 62px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.035);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
   backdrop-filter:blur(30px) saturate(155%);
   -webkit-backdrop-filter:blur(30px) saturate(155%);
 }
+.resize-handle{position:absolute;z-index:30;display:block;background:transparent;touch-action:none;pointer-events:auto}
+.resize-n,.resize-s{left:16px;right:16px;height:7px;cursor:ns-resize}
+.resize-n{top:0}.resize-s{bottom:0}
+.resize-e,.resize-w{top:16px;bottom:16px;width:7px;cursor:ew-resize}
+.resize-e{right:0}.resize-w{left:0}
+.resize-ne,.resize-nw,.resize-se,.resize-sw{width:18px;height:18px}
+.resize-ne{top:0;right:0;cursor:nesw-resize}
+.resize-nw{top:0;left:0;cursor:nwse-resize}
+.resize-se{bottom:0;right:0;cursor:nwse-resize}
+.resize-sw{bottom:0;left:0;cursor:nesw-resize}
 .window-glow{position:absolute;z-index:-1;pointer-events:none;width:240px;height:240px;top:-150px;left:-105px;border-radius:50%;background:var(--accent-soft);filter:blur(40px)}
 .window-header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;margin-bottom:20px}
 .brand{display:flex;align-items:center;gap:11px;min-width:0}
@@ -90,6 +100,12 @@ h1{font-size:19px;line-height:1.35;font-weight:700;letter-spacing:-.3px;margin:0
 .settings-heading h2{font-size:17px;margin:4px 0 0}
 .panel-close{width:30px;height:30px;border:0;border-radius:9px;background:#ffffff0c;color:#c8d0dd;font-size:19px;cursor:pointer}
 .setting-block{display:flex;flex-direction:column;gap:10px}
+.size-controls{display:grid;grid-template-columns:1fr 1fr .9fr;gap:7px}
+.size-control{min-width:0;padding:9px 7px;border:1px solid #ffffff17;border-radius:10px;background:#ffffff08;color:#e2e8f1;font-size:10px;font-weight:650;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
+.size-control:hover{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 42%,transparent);color:var(--accent)}
+.size-control:active{transform:scale(.98)}
+.size-control.reset{color:#9daabd}
+.size-hint{font-size:9px;color:#8492a4;font-weight:400}
 .setting-label{display:flex;justify-content:space-between;align-items:center;color:#e2e8f1;font-size:12px;font-weight:600}
 .setting-label output{color:var(--accent);font-size:11px;font-variant-numeric:tabular-nums}
 .range-control{appearance:none;-webkit-appearance:none;width:100%;height:5px;border-radius:20px;outline:none;cursor:pointer;margin:5px 0 1px}
@@ -115,6 +131,26 @@ h1{font-size:19px;line-height:1.35;font-weight:700;letter-spacing:-.3px;margin:0
 .switch:disabled{opacity:.55;cursor:wait}
 .startup-state{font-size:9px;color:#8290a4;margin-top:-12px}
 .settings-note{margin-top:auto;padding:10px 11px;border:1px solid #ffffff0e;border-radius:10px;background:#ffffff05;color:#8d9aaa;font-size:9px;line-height:1.7}
+@media(max-width:390px){
+  .window-shell{padding:15px 12px 12px}
+  .brand-mark{width:40px;height:40px}
+  h1{font-size:17px}
+  .quote-values{gap:7px}
+  .quote-value strong{font-size:17px}
+  .card-heading h2{font-size:13px}
+}
+@media(max-height:650px){
+  .window-shell{padding:12px 11px 10px}
+  .window-header{min-height:48px;margin-bottom:9px}
+  .brand-mark{width:38px;height:38px}
+  .rates-list{gap:6px}
+  .rate-card{padding:7px 9px}
+  .card-heading{margin-bottom:6px}
+  .quote-values{margin-bottom:6px}
+  .quote-value strong{font-size:16px}
+  .card-footer{padding-top:5px}
+  .app-footer{padding-top:8px}
+}
 @media(max-height:700px){
   .window-shell{padding:14px 13px 11px}
   .window-header{margin-bottom:13px}

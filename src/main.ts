@@ -1,6 +1,6 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 type Quote = {
   buy: number | null;
@@ -14,6 +14,12 @@ type Preferences = { opacity: number; hue: number };
 
 const PREF_KEY = "egypt-rates.preferences.v1";
 const defaultPreferences: Preferences = { opacity: 92, hue: 195 };
+type WindowSize = { width: number; height: number };
+const WINDOW_SIZE_KEY = "egypt-rates.window-size.v1";
+const DEFAULT_WINDOW_SIZE: WindowSize = { width: 420, height: 780 };
+const WINDOW_SIZE_LIMITS = { minWidth: 350, maxWidth: 680, minHeight: 580, maxHeight: 1000 };
+const currentWindow = getCurrentWindow();
+let windowSizeSaveTimer: number | null = null;
 
 function loadPreferences(): Preferences {
   try {
@@ -58,6 +64,89 @@ function applyPreferences() {
 function savePreferences() {
   localStorage.setItem(PREF_KEY, JSON.stringify(preferences));
   applyPreferences();
+}
+
+function normalizeWindowSize(value: Partial<WindowSize> | null | undefined): WindowSize | null {
+  const width = Number(value?.width);
+  const height = Number(value?.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return {
+    width: Math.round(Math.min(WINDOW_SIZE_LIMITS.maxWidth, Math.max(WINDOW_SIZE_LIMITS.minWidth, width))),
+    height: Math.round(Math.min(WINDOW_SIZE_LIMITS.maxHeight, Math.max(WINDOW_SIZE_LIMITS.minHeight, height)))
+  };
+}
+
+function loadSavedWindowSize(): WindowSize | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WINDOW_SIZE_KEY) ?? "null") as Partial<WindowSize> | null;
+    return normalizeWindowSize(saved);
+  } catch {
+    return null;
+  }
+}
+
+async function saveCurrentWindowSize() {
+  try {
+    const [physicalSize, scaleFactor] = await Promise.all([
+      currentWindow.innerSize(),
+      currentWindow.scaleFactor()
+    ]);
+    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) return;
+    const logicalSize = normalizeWindowSize({
+      width: physicalSize.width / scaleFactor,
+      height: physicalSize.height / scaleFactor
+    });
+    if (logicalSize) localStorage.setItem(WINDOW_SIZE_KEY, JSON.stringify(logicalSize));
+  } catch {
+    // A transient window event must never interrupt the rates interface.
+  }
+}
+
+async function restoreAndWatchWindowSize() {
+  const savedSize = loadSavedWindowSize();
+  try {
+    if (savedSize) {
+      await currentWindow.setSize(new LogicalSize(savedSize.width, savedSize.height));
+    }
+  } catch {
+    // The configured default size remains usable if restoring a stored size fails.
+  }
+
+  try {
+    await currentWindow.onResized(() => {
+      if (windowSizeSaveTimer !== null) window.clearTimeout(windowSizeSaveTimer);
+      windowSizeSaveTimer = window.setTimeout(() => {
+        windowSizeSaveTimer = null;
+        void saveCurrentWindowSize();
+      }, 220);
+    });
+  } catch {
+    // Resize itself remains available even if persistence listeners cannot be attached.
+  }
+}
+
+async function resizeWindowByStep(direction: -1 | 1) {
+  try {
+    const [physicalSize, scaleFactor] = await Promise.all([
+      currentWindow.innerSize(),
+      currentWindow.scaleFactor()
+    ]);
+    const nextSize = normalizeWindowSize({
+      width: physicalSize.width / scaleFactor + direction * 40,
+      height: physicalSize.height / scaleFactor + direction * 56
+    });
+    if (nextSize) await currentWindow.setSize(new LogicalSize(nextSize.width, nextSize.height));
+  } catch {
+    // Keep the interface responsive if the native resize request is unavailable.
+  }
+}
+
+async function resetWindowSize() {
+  try {
+    await currentWindow.setSize(new LogicalSize(DEFAULT_WINDOW_SIZE.width, DEFAULT_WINDOW_SIZE.height));
+  } catch {
+    // No-op: the user can still resize from the window edges.
+  }
 }
 
 function syncAutoStartControl() {
@@ -145,6 +234,14 @@ function render() {
 
   root.innerHTML = `
     <main class="window-shell">
+      <div class="resize-handle resize-n" data-resize="North" aria-hidden="true"></div>
+      <div class="resize-handle resize-s" data-resize="South" aria-hidden="true"></div>
+      <div class="resize-handle resize-e" data-resize="East" aria-hidden="true"></div>
+      <div class="resize-handle resize-w" data-resize="West" aria-hidden="true"></div>
+      <div class="resize-handle resize-ne" data-resize="NorthEast" aria-hidden="true"></div>
+      <div class="resize-handle resize-nw" data-resize="NorthWest" aria-hidden="true"></div>
+      <div class="resize-handle resize-se" data-resize="SouthEast" aria-hidden="true"></div>
+      <div class="resize-handle resize-sw" data-resize="SouthWest" aria-hidden="true"></div>
       <header class="window-header">
         <div class="brand">
           <img src="/app-mark.svg" alt="" class="brand-mark"/>
@@ -170,6 +267,14 @@ function render() {
 
       <section id="settings-panel" class="settings-panel ${settingsOpen ? "open" : ""}" aria-hidden="${!settingsOpen}">
         <div class="settings-heading"><div><span class="eyebrow">PERSONALIZE</span><h2>إعدادات المظهر</h2></div><button id="settings-close" class="panel-close" aria-label="إغلاق الإعدادات">×</button></div>
+        <div class="setting-block size-setting">
+          <div class="setting-label"><span>حجم النافذة</span><span class="size-hint">تحكم بالحجم أو اسحب من الحواف</span></div>
+          <div class="size-controls">
+            <button id="size-down" class="size-control" type="button" title="تصغير النافذة">− تصغير</button>
+            <button id="size-up" class="size-control" type="button" title="تكبير النافذة">＋ تكبير</button>
+            <button id="size-reset" class="size-control reset" type="button" title="إعادة الحجم الافتراضي">افتراضي</button>
+          </div>
+        </div>
         <div class="setting-block">
           <div class="setting-label"><span>شفافية النافذة</span><output id="opacity-value">${preferences.opacity}%</output></div>
           <input id="opacity-slider" class="range-control opacity-range" type="range" min="55" max="98" step="1" value="${preferences.opacity}" aria-label="شفافية النافذة"/>
@@ -228,6 +333,9 @@ function render() {
       savePreferences();
     });
   });
+  document.querySelector("#size-down")?.addEventListener("click", () => void resizeWindowByStep(-1));
+  document.querySelector("#size-up")?.addEventListener("click", () => void resizeWindowByStep(1));
+  document.querySelector("#size-reset")?.addEventListener("click", () => void resetWindowSize());
   document.querySelector("#autostart-toggle")?.addEventListener("click", () => void toggleAutoStart());
 
   if (settingsOpen) {
@@ -273,11 +381,22 @@ function enableAnywhereDragging() {
   document.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (!target || target.closest("button, input, textarea, select, a, label, [data-no-drag]")) return;
-    void getCurrentWindow().startDragging().catch(() => undefined);
+    if (!target) return;
+
+    const resizeHandle = target.closest<HTMLElement>("[data-resize]");
+    if (resizeHandle?.dataset.resize) {
+      event.preventDefault();
+      const direction = resizeHandle.dataset.resize as Parameters<typeof currentWindow.startResizeDragging>[0];
+      void currentWindow.startResizeDragging(direction).catch(() => undefined);
+      return;
+    }
+
+    if (target.closest("button, input, textarea, select, a, label, [data-no-drag]")) return;
+    void currentWindow.startDragging().catch(() => undefined);
   });
 }
 
+void restoreAndWatchWindowSize();
 enableAnywhereDragging();
 render();
 void refresh();
