@@ -51,7 +51,7 @@ h1{font-size:19px;line-height:1.35;font-weight:700;letter-spacing:-.3px;margin:0
 .section-caption>span:first-child{font-size:12px;font-weight:700;color:#e9edf5}
 .live-mark{display:flex;align-items:center;gap:6px;color:#8d9bab;font-size:10px}
 .live-mark i,.footer-dot{width:6px;height:6px;border-radius:50%;background:#4bc991;box-shadow:0 0 9px #4bc99170}
-.rates-list{display:flex;flex:1;min-height:0;flex-direction:column;gap:10px}
+.rates-list{display:flex;flex:1;min-height:0;flex-direction:column;gap:8px}
 .rate-card{
   display:flex;flex:1;min-height:0;flex-direction:column;justify-content:center;
   padding:13px 14px 11px;border:1px solid rgba(255,255,255,.085);border-radius:17px;
