@@ -1,6 +1,6 @@
 [package]
 name = "egypt-rates"
-version = "0.2.4"
+version = "0.2.5"
 description = "Floating Egyptian currency and gold rates widget"
 authors = ["RAFAT HAMED"]
 edition = "2021"
