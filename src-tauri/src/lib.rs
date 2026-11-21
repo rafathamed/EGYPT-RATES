@@ -141,14 +141,14 @@ fn refresh_rates() -> Rates {
 }
 
 #[tauri::command]
-fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![refresh_rates, hide_window])
+        .invoke_handler(tauri::generate_handler![refresh_rates, minimize_window])
         .run(tauri::generate_context!())
         .expect("error while running EGYPT RATES");
 }
