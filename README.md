@@ -12,6 +12,7 @@ A Windows 11-inspired vertical floating widget for Egyptian USD and gold prices,
 - 24K/21K gold from iSagha, with Gold Trade Center as fallback when the corresponding iSagha quote is unavailable.
 - Asynchronous concurrent source fetching and a shared HTTP connection pool to keep the UI responsive.
 - No fabricated fallback values. Missing source data remains unavailable.
+- In-app update checks and signed Windows update installation (available in updater-enabled builds).
 
 ## Development
 
@@ -28,6 +29,12 @@ The `tauri:dev` and `tauri:build` scripts generate all Windows icon sizes from `
 npm run build
 npm run tauri:build
 ```
+
+## Release and updater
+
+Windows release builds are produced by the GitHub Actions workflow. The updater-enabled build requires the repository Actions secret `TAURI_SIGNING_PRIVATE_KEY`; the corresponding public key is configured in `src-tauri/tauri.conf.json`. Never commit or publish the private signing key. The workflow signs the updater bundles and publishes the installer files together with `latest.json`.
+
+The first updater-enabled release must be installed manually over an older build that does not contain the updater plugin. Subsequent compatible releases can be checked, downloaded, signature-verified, and installed from inside the application.
 
 ## Sources
 
