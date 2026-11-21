@@ -1,16 +1,33 @@
 # EGYPT RATES
 
-A Windows desktop floating widget for Egyptian USD and gold prices, built with Tauri 2, Rust, and TypeScript.
+A Windows 11-inspired vertical floating widget for Egyptian USD and gold prices, built with Tauri 2, Rust, and TypeScript.
 
-## Current implementation
+## Current features
 
-- Windows 11-inspired Arabic interface.
-- Floating, always-on-top frameless window with drag support and minimize control.
-- Automatic refresh every 60 seconds.
-- USD buy/sell quote read from BankLive's NBE rates page. BankLive links to NBE's official website and reports when its displayed NBE rates last changed. This is a **third-party mirror**, not an NBE-operated API, and the UI labels it transparently.
-- Gold 24K/21K read from iSagha's published table, including its source update timestamp.
-- Gold Trade Center is used as a fallback only when the corresponding iSagha quote is missing. Its buy/sell labels are normalized to the dealer-perspective convention used in the app.
-- The app does not generate, interpolate, or substitute prices when a source cannot be read. Unavailable fields remain blank.
+- Portrait, frameless, always-on-top window, draggable from non-control areas.
+- Hidden from the Windows taskbar; the tray icon offers Show and Quit actions. Windows decides whether that icon is displayed directly or inside its hidden-icons overflow.
+- Refresh button with a busy state and duplicate-request protection; automatic polling every 60 seconds.
+- Settings panel with saved window transparency, hue/color slider, preset color swatches, and Windows startup toggle.
+- USD rates from BankLive's NBE rates page, clearly labelled as a third-party mirror and not an NBE-operated API.
+- 24K/21K gold from iSagha, with Gold Trade Center as fallback when the corresponding iSagha quote is unavailable.
+- Asynchronous concurrent source fetching and a shared HTTP connection pool to keep the UI responsive.
+- No fabricated fallback values. Missing source data remains unavailable.
+
+## Development
+
+Requirements: Node.js 22+, Rust stable, and WebView2 on Windows.
+
+```powershell
+npm install
+npm run tauri:dev
+```
+
+The `tauri:dev` and `tauri:build` scripts generate all Windows icon sizes from `src-tauri/icons/icon.svg` before launching/building Tauri.
+
+```powershell
+npm run build
+npm run tauri:build
+```
 
 ## Sources
 
@@ -18,28 +35,7 @@ A Windows desktop floating widget for Egyptian USD and gold prices, built with T
 - iSagha: https://market.isagha.com/prices/
 - Gold Trade Center fallback: https://app.gtc.com.eg/
 
-Polling every minute means the app checks for changes every minute; it does not mean that the source itself changes its quote every minute. The displayed source timestamp is kept distinct from the app's last check time.
-
-## Development requirements
-
-- Node.js 22+
-- Rust stable toolchain
-- Windows 10/11 with WebView2
-
-## Development
-
-```powershell
-npm install
-npm run tauri dev
-```
-
-## Build
-
-```powershell
-npm run tauri build
-```
-
-GitHub Actions builds Windows installers and uploads the EXE/MSI files as workflow artifacts under the Actions run.
+Polling every minute means the app checks every minute; it does not imply that the source changes its quote every minute. Source time is kept distinct from the app's last check time.
 
 ## License
 
