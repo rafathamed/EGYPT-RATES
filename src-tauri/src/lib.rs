@@ -1,8 +1,7 @@
 use chrono::Utc;
 use regex::Regex;
 use scraper::{Html, Selector};
-use serde::{Deserialize, Serialize};
-use std::process::Command;
+use serde::Serialize;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{menu::{Menu, MenuItem}, Manager, WindowEvent};
@@ -318,69 +317,6 @@ async fn refresh_rates() -> Rates {
     Rates { usd, sar, gold24, gold21, checked_at }
 }
 
-#[derive(Deserialize)]
-struct GithubRelease {
-    tag_name: String,
-    html_url: String,
-    body: Option<String>,
-    draft: bool,
-    prerelease: bool,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct UpdateCheck {
-    current_version: String,
-    latest_version: Option<String>,
-    update_available: bool,
-    html_url: Option<String>,
-    release_notes: Option<String>,
-}
-
-fn version_tuple(value: &str) -> Vec<u64> {
-    value.trim_start_matches('v').split('.')
-        .map(|part| part.split('-').next().unwrap_or("0").parse::<u64>().unwrap_or(0))
-        .collect()
-}
-
-#[tauri::command]
-async fn check_for_updates() -> Result<UpdateCheck, String> {
-    let current = env!("CARGO_PKG_VERSION").to_string();
-    let client = http_client().ok_or_else(|| "تعذر إنشاء اتصال الإنترنت".to_string())?;
-    let response = client.get("https://api.github.com/repos/rafathamed/EGYPT-RATES/releases/latest")
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .send().await.map_err(|e| e.to_string())?;
-    if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(UpdateCheck { current_version: current, latest_version: None, update_available: false, html_url: None, release_notes: None });
-    }
-    if !response.status().is_success() {
-        return Err(format!("GitHub returned {}", response.status()));
-    }
-    let release: GithubRelease = response.json().await.map_err(|e| e.to_string())?;
-    if release.draft || release.prerelease {
-        return Ok(UpdateCheck { current_version: current, latest_version: None, update_available: false, html_url: None, release_notes: None });
-    }
-    let latest = release.tag_name.trim_start_matches('v').to_string();
-    let update_available = version_tuple(&latest) > version_tuple(&current);
-    Ok(UpdateCheck {
-        current_version: current,
-        latest_version: Some(latest),
-        update_available,
-        html_url: Some(release.html_url),
-        release_notes: release.body,
-    })
-}
-
-#[tauri::command]
-fn open_update_page(url: String) -> Result<(), String> {
-    let Some(tag) = url.strip_prefix("https://github.com/rafathamed/EGYPT-RATES/releases/tag/") else { return Err("رابط التحديث غير مسموح".to_string()); };
-    if tag.is_empty() || !tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/') {
-        return Err("رابط التحديث غير مسموح".to_string());
-    }
-    Command::new("cmd").args(["/C", "start", "", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|e| e.to_string())
@@ -407,6 +343,7 @@ fn set_autostart_enabled(app: tauri::AppHandle, enabled: bool) -> Result<bool, S
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -443,8 +380,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             refresh_rates,
-            check_for_updates,
-            open_update_page,
             hide_window,
             autostart_is_enabled,
             set_autostart_enabled
