@@ -56,6 +56,7 @@ jobs:
         run: npm run tauri:build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
       - name: Validate frontend while signing key is not configured
         if: steps.signing.outputs.ready != 'true'
         run: npm run build
