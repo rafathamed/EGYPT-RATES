@@ -434,7 +434,17 @@ async function refresh() {
   refreshing = true;
   syncRefreshButton();
   try {
-    latestRates = await invoke<Rates>("refresh_rates");
+    const freshRates = await invoke<Rates>("refresh_rates");
+    if (latestRates) {
+      for (const key of ["usd", "sar", "gold24", "gold21"] as const) {
+        const fresh = freshRates[key];
+        const previous = latestRates[key];
+        if (fresh.buy === null && fresh.sell === null && (previous.buy !== null || previous.sell !== null)) {
+          freshRates[key] = { ...previous, status: "stale" };
+        }
+      }
+    }
+    latestRates = freshRates;
     refreshError = false;
   } catch {
     refreshError = true;
