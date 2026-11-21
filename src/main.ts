@@ -1,6 +1,7 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { check } from "@tauri-apps/plugin-updater";
 
 type Quote = {
   buy: number | null;
@@ -44,9 +45,9 @@ let autoStartLoading = false;
 let autoStartError = false;
 let topmostLoading = false;
 let updateChecking = false;
+let updateInstalling = false;
 let updateMessage = "لم يتم التحقق بعد";
-let updateUrl: string | null = null;
-let updateAvailable = false;
+let pendingUpdate: Awaited<ReturnType<typeof check>> = null;
 let latestRates: Rates | null = null;
 let lastCheckedAt: string | null = null;
 let refreshError = false;
@@ -199,33 +200,84 @@ async function toggleAlwaysOnTop() {
 }
 
 async function checkForUpdates() {
-  if (updateChecking) return;
+  if (updateChecking || updateInstalling) return;
   updateChecking = true;
   const button = document.querySelector<HTMLButtonElement>("#check-updates");
+  const installButton = document.querySelector<HTMLButtonElement>("#install-update");
   const state = document.querySelector<HTMLElement>("#update-state");
-  if (button) button.disabled = true;
-  if (state) state.textContent = "جارٍ البحث عن تحديثات…";
+  if (button) { button.disabled = true; button.textContent = "جارٍ التحقق…"; }
+  if (installButton) installButton.hidden = true;
+  if (state) state.textContent = "جارٍ التحقق من وجود تحديث آمن…";
+
   try {
-    const result = await invoke<{ currentVersion: string; latestVersion: string | null; updateAvailable: boolean; htmlUrl: string | null; releaseNotes: string | null }>("check_for_updates");
-    updateAvailable = result.updateAvailable; updateUrl = result.htmlUrl;
-    updateMessage = result.latestVersion ? (result.updateAvailable ? `يتوفر إصدار جديد ${result.latestVersion}` : `أنت تستخدم أحدث إصدار (${result.currentVersion})`) : "لا توجد إصدارات منشورة بعد";
-    if (result.releaseNotes) updateMessage += `\
-${result.releaseNotes.slice(0, 420)}`;
-  } catch { updateMessage = "تعذر التحقق. تحقق من اتصال الإنترنت ثم أعد المحاولة."; updateAvailable = false; updateUrl = null; }
-  finally {
+    pendingUpdate = await check();
+    if (pendingUpdate) {
+      updateMessage = `يتوفر تحديث جديد: الإصدار ${pendingUpdate.version}`;
+      if (pendingUpdate.body) updateMessage += `\n${pendingUpdate.body.slice(0, 360)}`;
+    } else {
+      updateMessage = "أنت تستخدم أحدث إصدار متاح.";
+    }
+  } catch (error) {
+    pendingUpdate = null;
+    const detail = error instanceof Error ? error.message : String(error);
+    updateMessage = `تعذر التحقق من التحديثات. ${detail.slice(0, 180)}`;
+  } finally {
     updateChecking = false;
     if (button) { button.disabled = false; button.textContent = "تحقق من التحديثات"; }
     if (state) state.textContent = updateMessage;
-    const link = document.querySelector<HTMLButtonElement>("#download-update");
-    if (link) link.hidden = !updateAvailable || !updateUrl;
+    if (installButton) installButton.hidden = !pendingUpdate;
   }
 }
 
-async function openUpdatePage() {
-  if (!updateUrl) return;
-  try { await invoke("open_update_page", { url: updateUrl }); } catch {
-    const state = document.querySelector<HTMLElement>("#update-state");
-    if (state) state.textContent = "تعذر فتح صفحة التحديث.";
+async function installAvailableUpdate() {
+  if (!pendingUpdate || updateInstalling) return;
+  updateInstalling = true;
+  const checkButton = document.querySelector<HTMLButtonElement>("#check-updates");
+  const installButton = document.querySelector<HTMLButtonElement>("#install-update");
+  const state = document.querySelector<HTMLElement>("#update-state");
+  if (checkButton) checkButton.disabled = true;
+  if (installButton) { installButton.disabled = true; installButton.textContent = "جارٍ تنزيل التحديث…"; }
+  if (state) state.textContent = "جارٍ تنزيل التحديث والتحقق من توقيعه الرقمي…";
+
+  try {
+    let downloaded = 0;
+    let contentLength: number | undefined;
+    const update = pendingUpdate;
+    await update.downloadAndInstall((event) => {
+      if (event.event === "Started") {
+        contentLength = event.data.contentLength;
+        updateMessage = "بدأ تنزيل التحديث…";
+      } else if (event.event === "Progress") {
+        downloaded += event.data.chunkLength;
+        const percent = contentLength && contentLength > 0
+          ? Math.min(100, Math.round((downloaded / contentLength) * 100))
+          : null;
+        updateMessage = percent === null
+          ? "جارٍ تنزيل التحديث…"
+          : `جارٍ تنزيل التحديث: ${percent}%`;
+      } else if (event.event === "Finished") {
+        updateMessage = "اكتمل التنزيل، جارٍ تشغيل مثبّت التحديث…";
+      }
+      if (state) state.textContent = updateMessage;
+      if (installButton) installButton.textContent = updateMessage;
+    });
+
+    updateMessage = "تم تمرير التحديث إلى مثبّت Windows. سيغلق التطبيق لإكمال التثبيت.";
+    if (state) state.textContent = updateMessage;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    updateMessage = `فشل تثبيت التحديث: ${detail.slice(0, 180)}`;
+    if (state) state.textContent = updateMessage;
+    try { await pendingUpdate?.close(); } catch { /* Release the update handle if possible. */ }
+    pendingUpdate = null;
+    if (installButton) installButton.hidden = true;
+  } finally {
+    updateInstalling = false;
+    if (checkButton) checkButton.disabled = false;
+    if (installButton && !installButton.hidden) {
+      installButton.disabled = false;
+      installButton.textContent = "إعادة محاولة تنزيل التحديث";
+    }
   }
 }
 
@@ -429,10 +481,10 @@ function render() {
         <div class="startup-state" id="autostart-state">التحقق من الحالة…</div>
         <div class="settings-divider"></div>
         <div class="updates-block">
-          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.5 — تحقق من وجود إصدار أحدث</span></div>
+          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.6 — تنزيل التحديثات وتثبيتها من داخل البرنامج</span></div>
           <button id="check-updates" class="size-control" type="button">تحقق من التحديثات</button>
           <div class="startup-state update-state" id="update-state">لم يتم التحقق بعد</div>
-          <button id="download-update" class="refresh-button" type="button" hidden>فتح صفحة تنزيل التحديث</button>
+          <button id="install-update" class="refresh-button" type="button" hidden>تنزيل وتثبيت التحديث</button>
         </div>
         <div class="settings-note">تُحفظ إعدادات المظهر والظهور فوق النوافذ على هذا الجهاز. قد يظهر رمز التطبيق في قائمة الأيقونات المخفية وفق إعدادات شريط مهام Windows.</div>
       </section>
@@ -491,7 +543,7 @@ function render() {
   document.querySelector("#autostart-toggle")?.addEventListener("click", () => void toggleAutoStart());
   document.querySelector("#topmost-toggle")?.addEventListener("click", () => void toggleAlwaysOnTop());
   document.querySelector("#check-updates")?.addEventListener("click", () => void checkForUpdates());
-  document.querySelector("#download-update")?.addEventListener("click", () => void openUpdatePage());
+  document.querySelector("#install-update")?.addEventListener("click", () => void installAvailableUpdate());
 
   if (focusedCalculator) {
     document.querySelector<HTMLInputElement>(`#${focusedCalculator}`)?.focus({ preventScroll: true });
