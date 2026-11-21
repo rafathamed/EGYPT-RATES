@@ -244,7 +244,7 @@ function render() {
       <div class="resize-handle resize-sw" data-resize="SouthWest" aria-hidden="true"></div>
       <header class="window-header">
         <div class="brand">
-          <img src="/app-mark.svg" alt="" class="brand-mark"/>
+          <img src="/app-mark.ico" alt="" class="brand-mark"/>
           <div class="brand-copy"><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1><span class="brand-subtitle">متابعة مباشرة للعملات والذهب</span></div>
         </div>
         <div class="header-actions">
