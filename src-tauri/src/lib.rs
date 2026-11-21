@@ -1,7 +1,7 @@
 use chrono::Utc;
 use regex::Regex;
 use scraper::{Html, Selector};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};\nuse std::process::Command;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{menu::{Menu, MenuItem}, Manager, WindowEvent};
