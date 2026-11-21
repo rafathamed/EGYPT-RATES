@@ -208,10 +208,60 @@ fn fetch_nbe_usd() -> Quote {
     unavailable(SOURCE)
 }
 
+
+fn fetch_gtc_fallback() -> (Quote, Quote) {
+    const SOURCE: &str = "Gold Trade Center (احتياطي)";
+    let unavailable_pair = || (unavailable(SOURCE), unavailable(SOURCE));
+    let Some(client) = http_client() else {
+        return unavailable_pair();
+    };
+
+    let html = match client.get("https://app.gtc.com.eg/").send() {
+        Ok(response) if response.status().is_success() => match response.text() {
+            Ok(html) => html,
+            Err(_) => return unavailable_pair(),
+        },
+        _ => return unavailable_pair(),
+    };
+
+    let document = Html::parse_document(&html);
+    let text = page_text(&document);
+
+    // GTC uses customer-perspective labels. Normalize them to the same
+    // dealer-perspective convention used by iSagha before displaying.
+    let parse_karat = |karat: &str| -> Option<(f64, f64)> {
+        let pattern = format!(
+            r"(?i)Au\s+LOCAL\s+Gold\s+{}\s+Sell\s+([0-9,]+(?:\.[0-9]+)?)\s*EGP\s*(?:·|&middot;|&#xB7;)\s*Buy\s+([0-9,]+(?:\.[0-9]+)?)\s*EGP",
+            karat
+        );
+        let re = Regex::new(&pattern).ok()?;
+        let capture = re.captures(&text)?;
+        let customer_sell = capture.get(1)?.as_str().replace(',', "").parse::<f64>().ok()?;
+        let customer_buy = capture.get(2)?.as_str().replace(',', "").parse::<f64>().ok()?;
+        if customer_sell > 0.0 && customer_buy >= customer_sell {
+            Some((customer_sell, customer_buy))
+        } else {
+            None
+        }
+    };
+
+    let quote = |value: Option<(f64, f64)>| match value {
+        Some((dealer_buy, dealer_sell)) => available(SOURCE, dealer_buy, dealer_sell, None),
+        None => unavailable(SOURCE),
+    };
+
+    (quote(parse_karat("24")), quote(parse_karat("21")))
+}
+
 #[tauri::command]
 fn refresh_rates() -> Rates {
     let usd = fetch_nbe_usd();
-    let (gold24, gold21) = fetch_isagha();
+    let (mut gold24, mut gold21) = fetch_isagha();
+    if gold24.buy.is_none() || gold21.buy.is_none() {
+        let (fallback24, fallback21) = fetch_gtc_fallback();
+        if gold24.buy.is_none() { gold24 = fallback24; }
+        if gold21.buy.is_none() { gold21 = fallback21; }
+    }
 
     Rates {
         usd,
