@@ -3,6 +3,8 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use std::time::Duration;
+use tauri::{menu::{Menu, MenuItem}, Manager, WindowEvent};
+use tauri::tray::TrayIconBuilder;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -276,10 +278,88 @@ fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn autostart_is_enabled(app: tauri::AppHandle) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_autostart_enabled(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable().map_err(|e| e.to_string())?;
+    } else {
+        manager.disable().map_err(|e| e.to_string())?;
+    }
+    manager.is_enabled().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![refresh_rates, minimize_window])
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .setup(|app| {
+            let show_item = MenuItem::with_id(
+                app,
+                "show",
+                "إظهار EGYPT RATES",
+                true,
+                None::<&str>,
+            )?;
+            let quit_item = MenuItem::with_id(
+                app,
+                "quit",
+                "إنهاء التطبيق",
+                true,
+                None::<&str>,
+            )?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let icon = app
+                .default_window_icon()
+                .cloned()
+                .expect("default app icon must be configured");
+
+            TrayIconBuilder::new()
+                .icon(icon)
+                .menu(&menu)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .build(app)?;
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            refresh_rates,
+            minimize_window,
+            hide_window,
+            autostart_is_enabled,
+            set_autostart_enabled
+        ])
         .run(tauri::generate_context!())
         .expect("error while running EGYPT RATES");
 }

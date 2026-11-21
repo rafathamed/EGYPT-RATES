@@ -5,6 +5,35 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 type Quote = { buy: number | null; sell: number | null; source: string; updatedAt: string | null; status: "available" | "unavailable" | "stale" };
 type Rates = { usd: Quote; gold24: Quote; gold21: Quote; checkedAt: string };
 
+let autoStartEnabled: boolean | null = null;
+let autoStartLoading = false;
+
+function syncAutoStartButton() {
+  const button = document.querySelector<HTMLButtonElement>("#autostart");
+  if (!button) return;
+  if (autoStartEnabled === null) {
+    button.textContent = autoStartLoading ? "جارٍ فحص إعداد بدء التشغيل…" : "تفعيل التشغيل مع Windows";
+    button.disabled = autoStartLoading;
+  } else {
+    button.textContent = autoStartEnabled ? "التشغيل مع Windows: مفعّل" : "التشغيل مع Windows: متوقف";
+    button.disabled = false;
+  }
+}
+
+async function loadAutoStartState() {
+  if (autoStartEnabled !== null || autoStartLoading) return;
+  autoStartLoading = true;
+  syncAutoStartButton();
+  try {
+    autoStartEnabled = await invoke<boolean>("autostart_is_enabled");
+  } catch {
+    autoStartEnabled = null;
+  } finally {
+    autoStartLoading = false;
+    syncAutoStartButton();
+  }
+}
+
 const unavailable = (source: string): Quote => ({ buy: null, sell: null, source, updatedAt: null, status: "unavailable" });
 const money = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
@@ -19,11 +48,12 @@ function render(rates: Rates | null, error = false) {
 
   root.innerHTML = `
     <main class="shell">
-      <header class="topbar"><div><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1></div><div class="actions"><button id="refresh" title="تحديث">⟳</button><button id="minimize" title="تصغير">−</button></div></header>
+      <header class="topbar"><div><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1></div><div class="actions"><button id="refresh" title="تحديث">⟳</button><button id="minimize" title="تصغير">−</button><button id="hide" title="إخفاء إلى شريط النظام">×</button></div></header>
       <section class="cards">
         ${cards.map(([title, symbol, q]) => `<article class="card"><div class="card-head"><div><h2>${title}</h2><span class="symbol">${symbol}</span></div><span class="dot ${q.status}"></span></div><div class="prices"><div><small>شراء</small><strong>${money(q.buy)}</strong></div><div><small>بيع</small><strong>${money(q.sell)}</strong></div></div><footer><span>${escapeHtml(q.source)}</span><span>${q.status === "available" ? "متاح" : q.status === "stale" ? "بيانات قديمة" : "غير متاح"}</span></footer><div class="source-update">${q.updatedAt ? "تحديث المصدر: " + escapeHtml(q.updatedAt) : "توقيت تحديث المصدر غير متاح"}</div></article>`).join("")}
       </section>
       <div class="status"><span>${error ? "تعذر الاتصال بمصدر الأسعار" : "البيانات تُعرض مع توضيح مصدرها"}</span><span>آخر فحص: ${rates ? new Date(rates.checkedAt).toLocaleTimeString("ar-EG") : "—"}</span></div>
+      <div class="preferences"><button id="autostart" type="button">تفعيل التشغيل مع Windows</button><span>إغلاق النافذة يخفي التطبيق إلى شريط النظام</span></div>
     </main>`;
   document.querySelector("#refresh")?.addEventListener("click", refresh);
   document.querySelector(".topbar")?.addEventListener("mousedown", (event) => {
@@ -31,6 +61,22 @@ function render(rates: Rates | null, error = false) {
     void getCurrentWindow().startDragging().catch(() => undefined);
   });
   document.querySelector("#minimize")?.addEventListener("click", () => invoke("minimize_window").catch(() => undefined));
+  document.querySelector("#hide")?.addEventListener("click", () => invoke("hide_window").catch(() => undefined));
+  document.querySelector("#autostart")?.addEventListener("click", async () => {
+    if (autoStartEnabled === null) await loadAutoStartState();
+    if (autoStartEnabled === null) return;
+    const button = document.querySelector<HTMLButtonElement>("#autostart");
+    if (button) button.disabled = true;
+    try {
+      autoStartEnabled = await invoke<boolean>("set_autostart_enabled", { enabled: !autoStartEnabled });
+    } catch {
+      // Keep the previous state and allow the user to retry.
+    } finally {
+      syncAutoStartButton();
+    }
+  });
+  syncAutoStartButton();
+  void loadAutoStartState();
 }
 
 async function refresh() {
