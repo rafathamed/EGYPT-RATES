@@ -46,7 +46,7 @@ let autoStartError = false;
 let topmostLoading = false;
 let updateChecking = false;
 let updateInstalling = false;
-let updateMessage = "لم يتم التحقق بعد";
+let updateMessage = "Not checked yet";
 let pendingUpdate: Awaited<ReturnType<typeof check>> = null;
 let latestRates: Rates | null = null;
 let lastCheckedAt: string | null = null;
@@ -59,7 +59,7 @@ const unavailable = (source: string): Quote => ({
 });
 const money = (value: number | null) => value === null
   ? "—"
-  : new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+  : new Intl.NumberFormat("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 function loadCalculatorValues(): CalculatorValues {
   try {
     const saved = JSON.parse(localStorage.getItem(CALCULATOR_VALUES_KEY) ?? "null") as Partial<CalculatorValues> | null;
@@ -183,7 +183,7 @@ function syncTopmostControl() {
   if (!button || !state) return;
   button.setAttribute("aria-checked", String(preferences.alwaysOnTop));
   button.disabled = topmostLoading;
-  state.textContent = topmostLoading ? "جارٍ تطبيق الإعداد…" : preferences.alwaysOnTop ? "مفعّل — فوق النوافذ الأخرى" : "متوقف — ضمن ترتيب النوافذ";
+  state.textContent = topmostLoading ? "Applying setting…" : preferences.alwaysOnTop ? "Enabled — always on top" : "Disabled — follows window order";
 }
 
 async function toggleAlwaysOnTop() {
@@ -205,9 +205,9 @@ async function checkForUpdates() {
   const button = document.querySelector<HTMLButtonElement>("#check-updates");
   const installButton = document.querySelector<HTMLButtonElement>("#install-update");
   const state = document.querySelector<HTMLElement>("#update-state");
-  if (button) { button.disabled = true; button.textContent = "جارٍ التحقق…"; }
+  if (button) { button.disabled = true; button.textContent = "Checking…"; }
   if (installButton) installButton.hidden = true;
-  if (state) state.textContent = "جارٍ التحقق من وجود تحديث آمن…";
+  if (state) state.textContent = "Checking for available updates…";
 
   try {
     const previousUpdate = pendingUpdate;
@@ -215,18 +215,18 @@ async function checkForUpdates() {
     await previousUpdate?.close().catch(() => undefined);
     pendingUpdate = await check();
     if (pendingUpdate) {
-      updateMessage = `يتوفر تحديث جديد: الإصدار ${pendingUpdate.version}`;
+      updateMessage = `A new update is available: version ${pendingUpdate.version}`;
       if (pendingUpdate.body) updateMessage += `\n${pendingUpdate.body.slice(0, 360)}`;
     } else {
-      updateMessage = "أنت تستخدم أحدث إصدار متاح.";
+      updateMessage = "You're using the latest available version.";
     }
   } catch (error) {
     pendingUpdate = null;
     const detail = error instanceof Error ? error.message : String(error);
-    updateMessage = `تعذر التحقق من التحديثات. ${detail.slice(0, 180)}`;
+    updateMessage = `Could not check for updates. ${detail.slice(0, 180)}`;
   } finally {
     updateChecking = false;
-    if (button) { button.disabled = false; button.textContent = "تحقق من التحديثات"; }
+    if (button) { button.disabled = false; button.textContent = "Check for updates"; }
     if (state) state.textContent = updateMessage;
     if (installButton) installButton.hidden = !pendingUpdate;
   }
@@ -239,8 +239,8 @@ async function installAvailableUpdate() {
   const installButton = document.querySelector<HTMLButtonElement>("#install-update");
   const state = document.querySelector<HTMLElement>("#update-state");
   if (checkButton) checkButton.disabled = true;
-  if (installButton) { installButton.disabled = true; installButton.textContent = "جارٍ تنزيل التحديث…"; }
-  if (state) state.textContent = "جارٍ تنزيل التحديث والتحقق من توقيعه الرقمي…";
+  if (installButton) { installButton.disabled = true; installButton.textContent = "Downloading update…"; }
+  if (state) state.textContent = "Downloading the update and verifying its digital signature…";
 
   try {
     let downloaded = 0;
@@ -249,28 +249,28 @@ async function installAvailableUpdate() {
     await update.downloadAndInstall((event) => {
       if (event.event === "Started") {
         contentLength = event.data.contentLength;
-        updateMessage = "بدأ تنزيل التحديث…";
+        updateMessage = "Update download started…";
       } else if (event.event === "Progress") {
         downloaded += event.data.chunkLength;
         const percent = contentLength && contentLength > 0
           ? Math.min(100, Math.round((downloaded / contentLength) * 100))
           : null;
         updateMessage = percent === null
-          ? "جارٍ تنزيل التحديث…"
-          : `جارٍ تنزيل التحديث: ${percent}%`;
+          ? "Downloading update…"
+          : `Downloading update: ${percent}%`;
       } else if (event.event === "Finished") {
-        updateMessage = "اكتمل التنزيل، جارٍ تشغيل مثبّت التحديث…";
+        updateMessage = "Download complete. Starting the update installer…";
       }
       if (state) state.textContent = updateMessage;
       if (installButton) installButton.textContent = updateMessage;
     }, { restartAfterInstall: true });
 
     pendingUpdate = null;
-    updateMessage = "تم تمرير التحديث إلى مثبّت Windows. سيغلق التطبيق لإكمال التثبيت.";
+    updateMessage = "The update has been handed off to the Windows installer. The app will close to complete installation.";
     if (state) state.textContent = updateMessage;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    updateMessage = `فشل تثبيت التحديث: ${detail.slice(0, 180)}`;
+    updateMessage = `Update installation failed: ${detail.slice(0, 180)}`;
     if (state) state.textContent = updateMessage;
     try { await pendingUpdate?.close(); } catch { /* Release the update handle if possible. */ }
     pendingUpdate = null;
@@ -280,7 +280,7 @@ async function installAvailableUpdate() {
     if (checkButton) checkButton.disabled = false;
     if (installButton && !installButton.hidden) {
       installButton.disabled = false;
-      installButton.textContent = "إعادة محاولة تنزيل التحديث";
+      installButton.textContent = "Retry update download";
     }
   }
 }
@@ -291,15 +291,15 @@ function syncAutoStartControl() {
   if (!button || !state) return;
 
   if (autoStartLoading) {
-    state.textContent = "جارٍ التحقق…";
+    state.textContent = "Checking…";
     button.setAttribute("aria-checked", "false");
     button.disabled = true;
   } else if (autoStartEnabled === null) {
-    state.textContent = autoStartError ? "تعذر التحقق — اضغط لإعادة المحاولة" : "التحقق من الحالة…";
+    state.textContent = autoStartError ? "Unable to check — click to retry" : "Checking status…";
     button.setAttribute("aria-checked", "false");
     button.disabled = false;
   } else {
-    state.textContent = autoStartEnabled ? "مفعّل" : "متوقف";
+    state.textContent = autoStartEnabled ? "Enabled" : "Disabled";
     button.setAttribute("aria-checked", String(autoStartEnabled));
     button.disabled = false;
   }
@@ -347,12 +347,12 @@ function purchaseTotal(id: CalculatorKey, buy: number | null): number | null {
 
 function calculationPanel(id: CalculatorKey, quote: Quote) {
   const isGold = id === "gold24" || id === "gold21";
-  const itemName = id === "usd" ? "الدولار" : id === "sar" ? "الريال السعودي" : id === "gold24" ? "الذهب عيار 24" : "الذهب عيار 21";
+  const itemName = id === "usd" ? "US Dollar" : id === "sar" ? "Saudi Riyal" : id === "gold24" ? "24K Gold" : "21K Gold";
   return `
     <div class="purchase-calculator">
       <div class="calculator-heading">
-        <label for="${id}-quantity">${isGold ? "حساب قيمة الذهب" : "حساب قيمة الشراء"}</label>
-        <span>${isGold ? "سعر شراء الجرام × الجرامات" : "سعر الشراء × الكمية"}</span>
+        <label for="${id}-quantity">${isGold ? "Gold Value Calculator" : "Purchase Calculator"}</label>
+        <span>${isGold ? "Gold buying price × grams" : "Buying price × quantity"}</span>
       </div>
       <div class="calculator-row">
         <input
@@ -364,12 +364,12 @@ function calculationPanel(id: CalculatorKey, quote: Quote) {
           step="any"
           dir="ltr"
           autocomplete="off"
-          aria-label="${isGold ? "عدد جرامات" : "كمية"} ${itemName} لحساب الإجمالي"
-          placeholder="${isGold ? "عدد الجرامات" : "أدخل الكمية"}"
+          aria-label="${isGold ? "Number of grams" : "Quantity"} ${itemName} for total calculation"
+          placeholder="${isGold ? "Enter grams" : "Enter quantity"}"
           value="${escapeHtml(calculatorValues[id])}"
         />
         <div class="calculator-output" aria-live="polite">
-          <span>الإجمالي (جنيه)</span>
+          <span>Total (EGP)</span>
           <strong id="${id}-total">${money(purchaseTotal(id, quote.buy))}</strong>
         </div>
       </div>
@@ -378,8 +378,8 @@ function calculationPanel(id: CalculatorKey, quote: Quote) {
 
 function quoteCard(title: string, symbol: string, quote: Quote, id: CalculatorKey) {
   const statusText = quote.status === "available"
-    ? "متاح"
-    : quote.status === "stale" ? "بيانات قديمة" : "غير متاح";
+    ? "Available"
+    : quote.status === "stale" ? "Stale data" : "Unavailable";
   return `
     <article class="rate-card" data-card="${id}">
       <div class="card-heading">
@@ -387,14 +387,14 @@ function quoteCard(title: string, symbol: string, quote: Quote, id: CalculatorKe
         <span class="source-state ${quote.status}"><i></i>${statusText}</span>
       </div>
       <div class="quote-values">
-        <div class="quote-value"><span>شراء</span><strong>${money(quote.buy)}</strong></div>
+        <div class="quote-value"><span>Buy</span><strong>${money(quote.buy)}</strong></div>
         <div class="quote-divider"></div>
-        <div class="quote-value"><span>بيع</span><strong>${money(quote.sell)}</strong></div>
+        <div class="quote-value"><span>Sell</span><strong>${money(quote.sell)}</strong></div>
       </div>
       ${calculationPanel(id, quote)}
       <div class="card-footer">
         <span class="source-name">${escapeHtml(quote.source)}</span>
-        <span class="source-time">${quote.updatedAt ? "تحديث المصدر: " + escapeHtml(quote.updatedAt) : "توقيت المصدر غير متاح"}</span>
+        <span class="source-time">${quote.updatedAt ? "Source updated: " + escapeHtml(quote.updatedAt) : "Source time unavailable"}</span>
       </div>
     </article>`;
 }
@@ -406,11 +406,11 @@ function render() {
     ? document.activeElement.id
     : null;
   const rates = latestRates;
-  const usd = rates?.usd ?? unavailable("البنك الأهلي المصري");
-  const sar = rates?.sar ?? unavailable("البنك الأهلي المصري");
+  const usd = rates?.usd ?? unavailable("National Bank of Egypt");
+  const sar = rates?.sar ?? unavailable("National Bank of Egypt");
   const gold24 = rates?.gold24 ?? unavailable("iSagha");
   const gold21 = rates?.gold21 ?? unavailable("iSagha");
-  const checked = lastCheckedAt ? new Date(lastCheckedAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+  const checked = lastCheckedAt ? new Date(lastCheckedAt).toLocaleTimeString("en-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
 
   root.innerHTML = `
     <main class="window-shell">
@@ -425,72 +425,72 @@ function render() {
       <header class="window-header">
         <div class="brand">
           <img src="/app-mark.ico" alt="" class="brand-mark"/>
-          <div class="brand-copy"><span class="eyebrow">EGYPT RATES</span><h1>أسعار السوق المصري</h1><span class="brand-subtitle">متابعة مباشرة للعملات والذهب</span></div>
+          <div class="brand-copy"><span class="eyebrow">EGYPT RATES</span><h1>Egyptian Market Rates</h1><span class="brand-subtitle">Live currency and gold tracking</span></div>
         </div>
         <div class="header-actions">
-          <button id="settings-button" class="icon-button ${settingsOpen ? "active" : ""}" aria-label="الإعدادات" title="الإعدادات">⚙</button>
-          <button id="hide-button" class="icon-button close-button" aria-label="إخفاء إلى منطقة الإشعارات" title="إخفاء إلى منطقة الإشعارات">×</button>
+          <button id="settings-button" class="icon-button ${settingsOpen ? "active" : ""}" aria-label="Settings" title="Settings">⚙</button>
+          <button id="hide-button" class="icon-button close-button" aria-label="Hide to system tray" title="Hide to system tray">×</button>
         </div>
       </header>
 
-      <div class="section-caption"><span>الأسعار الحالية</span><span class="live-mark"><i></i>متابعة تلقائية</span></div>
+      <div class="section-caption"><span>Current Rates</span><span class="live-mark"><i></i>Auto refresh</span></div>
       <section class="rates-list">
-        ${quoteCard("الدولار الأمريكي", "USD / EGP", usd, "usd")}
-        ${quoteCard("الريال السعودي", "SAR / EGP", sar, "sar")}
-        ${quoteCard("الذهب عيار 24", "24K / EGP", gold24, "gold24")}
-        ${quoteCard("الذهب عيار 21", "21K / EGP", gold21, "gold21")}
+        ${quoteCard("US Dollar", "USD / EGP", usd, "usd")}
+        ${quoteCard("Saudi Riyal", "SAR / EGP", sar, "sar")}
+        ${quoteCard("24K Gold", "24K / EGP", gold24, "gold24")}
+        ${quoteCard("21K Gold", "21K / EGP", gold21, "gold21")}
       </section>
 
       <footer class="app-footer">
-        <div class="footer-info"><span class="footer-dot ${refreshError ? "warning" : ""}"></span><span>${refreshError ? "تعذر تحديث بعض البيانات" : refreshing ? "جارٍ تحديث الأسعار…" : "آخر فحص " + checked}</span></div>
-        <button id="refresh-button" class="refresh-button ${refreshing ? "busy" : ""}" ${refreshing ? "disabled" : ""}><span class="refresh-glyph">↻</span><span>${refreshing ? "جارٍ التحديث" : "تحديث الآن"}</span></button>
+        <div class="footer-info"><span class="footer-dot ${refreshError ? "warning" : ""}"></span><span>${refreshError ? "Some data could not be updated" : refreshing ? "Refreshing rates…" : "Last checked " + checked}</span></div>
+        <button id="refresh-button" class="refresh-button ${refreshing ? "busy" : ""}" ${refreshing ? "disabled" : ""}><span class="refresh-glyph">↻</span><span>${refreshing ? "Refreshing" : "Refresh Now"}</span></button>
       </footer>
 
       <section id="settings-panel" class="settings-panel ${settingsOpen ? "open" : ""}" aria-hidden="${!settingsOpen}">
-        <div class="settings-heading"><div><span class="eyebrow">PERSONALIZE</span><h2>إعدادات المظهر</h2></div><button id="settings-close" class="panel-close" aria-label="إغلاق الإعدادات">×</button></div>
+        <div class="settings-heading"><div><span class="eyebrow">PERSONALIZE</span><h2>Appearance Settings</h2></div><button id="settings-close" class="panel-close" aria-label="Close settings">×</button></div>
         <div class="setting-block size-setting">
-          <div class="setting-label"><span>حجم النافذة</span><span class="size-hint">تحكم بالحجم أو اسحب من الحواف</span></div>
+          <div class="setting-label"><span>Window Size</span><span class="size-hint">Adjust the size or drag the edges</span></div>
           <div class="size-controls">
-            <button id="size-down" class="size-control" type="button" title="تصغير النافذة">− تصغير</button>
-            <button id="size-up" class="size-control" type="button" title="تكبير النافذة">＋ تكبير</button>
-            <button id="size-reset" class="size-control reset" type="button" title="إعادة الحجم الافتراضي">افتراضي</button>
+            <button id="size-down" class="size-control" type="button" title="Shrink window">− Smaller</button>
+            <button id="size-up" class="size-control" type="button" title="Enlarge window">＋ Larger</button>
+            <button id="size-reset" class="size-control reset" type="button" title="Restore default size">Default</button>
           </div>
         </div>
         <div class="setting-block">
-          <div class="setting-label"><span>شفافية النافذة</span><output id="opacity-value">${preferences.opacity}%</output></div>
-          <input id="opacity-slider" class="range-control opacity-range" type="range" min="55" max="98" step="1" value="${preferences.opacity}" aria-label="شفافية النافذة"/>
-          <div class="range-hints"><span>أكثر شفافية</span><span>أكثر وضوحاً</span></div>
+          <div class="setting-label"><span>Window Transparency</span><output id="opacity-value">${preferences.opacity}%</output></div>
+          <input id="opacity-slider" class="range-control opacity-range" type="range" min="55" max="98" step="1" value="${preferences.opacity}" aria-label="Window Transparency"/>
+          <div class="range-hints"><span>More transparent</span><span>More opaque</span></div>
         </div>
         <div class="setting-block">
-          <div class="setting-label"><span>لون الواجهة</span><span class="color-preview"></span></div>
-          <input id="color-slider" class="range-control color-range" type="range" min="175" max="275" step="1" value="${preferences.hue}" aria-label="اختيار لون الواجهة"/>
+          <div class="setting-label"><span>Accent Color</span><span class="color-preview"></span></div>
+          <input id="color-slider" class="range-control color-range" type="range" min="175" max="275" step="1" value="${preferences.hue}" aria-label="Choose accent color"/>
           <div class="color-presets">
-            <button class="color-preset cyan" data-hue="190" aria-label="سماوي"></button>
-            <button class="color-preset blue" data-hue="215" aria-label="أزرق"></button>
-            <button class="color-preset indigo" data-hue="238" aria-label="نيلي"></button>
-            <button class="color-preset violet" data-hue="270" aria-label="بنفسجي"></button>
+            <button class="color-preset cyan" data-hue="190" aria-label="Cyan"></button>
+            <button class="color-preset blue" data-hue="215" aria-label="Blue"></button>
+            <button class="color-preset indigo" data-hue="238" aria-label="Indigo"></button>
+            <button class="color-preset violet" data-hue="270" aria-label="Violet"></button>
           </div>
         </div>
         <div class="settings-divider"></div>
         <div class="startup-row">
-          <div class="startup-copy"><strong>الظهور فوق النوافذ الأخرى</strong><span>إبقاء نافذة الأسعار أمام النوافذ الأخرى</span></div>
-          <button id="topmost-toggle" class="switch" role="switch" aria-checked="${preferences.alwaysOnTop}" aria-label="الظهور فوق النوافذ الأخرى"><span></span></button>
+          <div class="startup-copy"><strong>Always on Top</strong><span>Keep the rates window above other windows</span></div>
+          <button id="topmost-toggle" class="switch" role="switch" aria-checked="${preferences.alwaysOnTop}" aria-label="Always on Top"><span></span></button>
         </div>
-        <div class="startup-state" id="topmost-state">${preferences.alwaysOnTop ? "مفعّل — فوق النوافذ الأخرى" : "متوقف — ضمن ترتيب النوافذ"}</div>
+        <div class="startup-state" id="topmost-state">${preferences.alwaysOnTop ? "Enabled — always on top" : "Disabled — follows window order"}</div>
         <div class="settings-divider"></div>
         <div class="startup-row">
-          <div class="startup-copy"><strong>التشغيل مع Windows</strong><span>فتح التطبيق تلقائياً عند تسجيل الدخول</span></div>
-          <button id="autostart-toggle" class="switch" role="switch" aria-checked="false" aria-label="التشغيل مع Windows"><span></span></button>
+          <div class="startup-copy"><strong>Launch at Startup</strong><span>Automatically open the app when you sign in</span></div>
+          <button id="autostart-toggle" class="switch" role="switch" aria-checked="false" aria-label="Launch at Startup"><span></span></button>
         </div>
-        <div class="startup-state" id="autostart-state">التحقق من الحالة…</div>
+        <div class="startup-state" id="autostart-state">Checking status…</div>
         <div class="settings-divider"></div>
         <div class="updates-block">
-          <div class="startup-copy"><strong>تحديثات التطبيق</strong><span>الإصدار الحالي 0.2.6 — تنزيل التحديثات وتثبيتها من داخل البرنامج</span></div>
-          <button id="check-updates" class="size-control" type="button">تحقق من التحديثات</button>
-          <div class="startup-state update-state" id="update-state">لم يتم التحقق بعد</div>
-          <button id="install-update" class="refresh-button" type="button" hidden>تنزيل وتثبيت التحديث</button>
+          <div class="startup-copy"><strong>App Updates</strong><span>Current version 0.2.6 — download and install updates from within the app</span></div>
+          <button id="check-updates" class="size-control" type="button">Check for updates</button>
+          <div class="startup-state update-state" id="update-state">Not checked yet</div>
+          <button id="install-update" class="refresh-button" type="button" hidden>Download and Install Update</button>
         </div>
-        <div class="settings-note">تُحفظ إعدادات المظهر والظهور فوق النوافذ على هذا الجهاز. قد يظهر رمز التطبيق في قائمة الأيقونات المخفية وفق إعدادات شريط مهام Windows.</div>
+        <div class="settings-note">Appearance and always-on-top settings are saved on this device. The app icon may appear in the hidden icons menu, depending on your Windows taskbar settings.</div>
       </section>
 
       <div class="window-glow"></div>
@@ -518,7 +518,7 @@ function render() {
       } catch {
         // The live calculation remains available even if local storage is unavailable.
       }
-      const quote = latestRates?.[id] ?? unavailable("البنك الأهلي المصري");
+      const quote = latestRates?.[id] ?? unavailable("National Bank of Egypt");
       const output = document.querySelector<HTMLElement>(`#${id}-total`);
       if (output) output.textContent = money(purchaseTotal(id, quote.buy));
     });
@@ -567,7 +567,7 @@ function syncRefreshButton() {
   button.disabled = refreshing;
   button.classList.toggle("busy", refreshing);
   const label = button.querySelector("span:last-child");
-  if (label) label.textContent = refreshing ? "جارٍ التحديث" : "تحديث الآن";
+  if (label) label.textContent = refreshing ? "Refreshing" : "Refresh Now";
 }
 
 async function refresh() {
