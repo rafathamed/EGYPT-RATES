@@ -29,7 +29,7 @@ async function platformEntry(installerPath) {
   const signaturePath = `${installerPath}.sig`;
   const signature = (await readFile(signaturePath, "utf8")).trim();
   if (!signature) throw new Error(`Missing updater signature: ${signaturePath}`);
-  const assetName = basename(installerPath);
+  const assetName = basename(installerPath).replaceAll(" ", ".");
   return {
     signature,
     url: `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(assetName)}`
