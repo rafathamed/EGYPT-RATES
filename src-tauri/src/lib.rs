@@ -78,6 +78,14 @@ fn page_text(document: &Html) -> String {
         .join(" ")
 }
 
+fn to_latin_digits(value: &str) -> String {
+    value.chars().map(|character| match character {
+        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+        '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        _ => character,
+    }).collect()
+}
+
 async fn fetch_page(client: &reqwest::Client, url: &str) -> Option<String> {
     let response = client.get(url).send().await.ok()?;
     if !response.status().is_success() {
@@ -101,12 +109,7 @@ async fn fetch_isagha(client: &reqwest::Client) -> (Quote, Quote) {
     .ok()
     .and_then(|re| re.captures(&text))
     .and_then(|captures| captures.get(1))
-    .map(|value| {
-        let mut date = value.as_str().trim().to_string();
-        for (from, to) in [('٠', "0"), ('١', "1"), ('٢', "2"), ('٣', "3"), ('٤', "4"), ('٥', "5"), ('٦', "6"), ('٧', "7"), ('٨', "8"), ('٩', "9")] { date = date.replace(from, to); }
-        for (from, to) in [("يناير", "January"), ("فبراير", "February"), ("مارس", "March"), ("أبريل", "April"), ("ابريل", "April"), ("مايو", "May"), ("يونيو", "June"), ("يوليو", "July"), ("أغسطس", "August"), ("اغسطس", "August"), ("سبتمبر", "September"), ("أكتوبر", "October"), ("اكتوبر", "October"), ("نوفمبر", "November"), ("ديسمبر", "December")] { date = date.replace(from, to); }
-        date
-    });
+    .map(|value| to_latin_digits(value.as_str().trim()));
 
     let Ok(row_selector) = Selector::parse("table tr") else {
         return unavailable_pair();
@@ -158,7 +161,7 @@ async fn fetch_isagha(client: &reqwest::Client) -> (Quote, Quote) {
 
 async fn fetch_nbe_usd(client: &reqwest::Client) -> Quote {
     // BankLive is a third-party mirror, not an NBE-operated API.
-    const SOURCE: &str = "National Bank of Egypt (via BankLive)";
+    const SOURCE: &str = "البنك الأهلي المصري (عبر BankLive)";
     let Some(html) = fetch_page(
         client,
         "https://banklive.net/ar/currency-exchange-rates-in-national-bank-of-egypt",
@@ -184,14 +187,7 @@ async fn fetch_nbe_usd(client: &reqwest::Client) -> Quote {
     .ok()
     .and_then(|re| re.captures(&text))
     .and_then(|captures| captures.get(1))
-    .map(|value| {
-        let mut age = value.as_str().replace("منذ ", "");
-        for (from, to) in [('٠', "0"), ('١', "1"), ('٢', "2"), ('٣', "3"), ('٤', "4"), ('٥', "5"), ('٦', "6"), ('٧', "7"), ('٨', "8"), ('٩', "9")] { age = age.replace(from, to); }
-        for (from, to) in [("دقائق", "minutes"), ("دقيقة", "minute"), ("ساعات", "hours"), ("ساعة", "hour"), ("أيام", "days"), ("يوم", "day")] {
-            age = age.replace(from, to);
-        }
-        format!("Last activity: {} ago", age)
-    });
+    .map(|value| format!("آخر حركة بموقع البنك: {}", to_latin_digits(value.as_str())));
 
     for row in document.select(&row_selector) {
         let cells: Vec<String> = row
@@ -217,7 +213,7 @@ async fn fetch_nbe_usd(client: &reqwest::Client) -> Quote {
 
 async fn fetch_nbe_sar(client: &reqwest::Client) -> Quote {
     // BankLive is a third-party mirror, not an NBE-operated API.
-    const SOURCE: &str = "National Bank of Egypt (via BankLive)";
+    const SOURCE: &str = "البنك الأهلي المصري (عبر BankLive)";
     let Some(html) = fetch_page(
         client,
         "https://banklive.net/ar/currency-exchange-rates-in-national-bank-of-egypt",
@@ -243,14 +239,7 @@ async fn fetch_nbe_sar(client: &reqwest::Client) -> Quote {
     .ok()
     .and_then(|re| re.captures(&text))
     .and_then(|captures| captures.get(1))
-    .map(|value| {
-        let mut age = value.as_str().replace("منذ ", "");
-        for (from, to) in [('٠', "0"), ('١', "1"), ('٢', "2"), ('٣', "3"), ('٤', "4"), ('٥', "5"), ('٦', "6"), ('٧', "7"), ('٨', "8"), ('٩', "9")] { age = age.replace(from, to); }
-        for (from, to) in [("دقائق", "minutes"), ("دقيقة", "minute"), ("ساعات", "hours"), ("ساعة", "hour"), ("أيام", "days"), ("يوم", "day")] {
-            age = age.replace(from, to);
-        }
-        format!("Last activity: {} ago", age)
-    });
+    .map(|value| format!("آخر حركة بموقع البنك: {}", to_latin_digits(value.as_str())));
 
     for row in document.select(&row_selector) {
         let cells: Vec<String> = row
@@ -275,7 +264,7 @@ async fn fetch_nbe_sar(client: &reqwest::Client) -> Quote {
 }
 
 async fn fetch_gtc_fallback(client: &reqwest::Client) -> (Quote, Quote) {
-    const SOURCE: &str = "Gold Trade Center (fallback)";
+    const SOURCE: &str = "Gold Trade Center (احتياطي)";
     let unavailable_pair = || (unavailable(SOURCE), unavailable(SOURCE));
     let Some(html) = fetch_page(client, "https://app.gtc.com.eg/").await else {
         return unavailable_pair();
@@ -311,8 +300,8 @@ async fn refresh_rates() -> Rates {
     let checked_at = Utc::now().to_rfc3339();
     let Some(client) = http_client() else {
         return Rates {
-            usd: unavailable("National Bank of Egypt (via BankLive)"),
-            sar: unavailable("National Bank of Egypt (via BankLive)"),
+            usd: unavailable("البنك الأهلي المصري (عبر BankLive)"),
+            sar: unavailable("البنك الأهلي المصري (عبر BankLive)"),
             gold24: unavailable("iSagha"),
             gold21: unavailable("iSagha"),
             checked_at,
@@ -368,8 +357,8 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
-            let show_item = MenuItem::with_id(app, "show", "Show EGYPT RATES", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit application", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "إظهار EGYPT RATES", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "إنهاء التطبيق", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
             let icon = app.default_window_icon().cloned().expect("default app icon must be configured");
 
